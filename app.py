@@ -1,101 +1,83 @@
-import os
 import streamlit as st
-from scipy.io import wavfile
-from langchain.memory import ConversationBufferMemory
-from langchain.chains.llm import LLMChain
-from langchain_core.prompts import PromptTemplate
-from langchain_groq import ChatGroq
-from gtts import gTTS
-import whisper
-from dotenv import load_dotenv
+import pyaudio
+import wave
+import speech_recognition as sr
+import openai
+import base64
+import os
 
-# Carregar variáveis de ambiente
-load_dotenv()
-groq_api_key = os.getenv("sk-proj-VqQdiflImI1O4LIBn8OBT3BlbkFJR8nstd556kCDmZ66ztmZ") #sk-proj-VqQdiflImI1O4LIBn8OBT3BlbkFJR8nstd556kCDmZ66ztmZ
-#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 
-def load_whisper():
-    model = whisper.load_model("base")
-    return model
+# Configurar a chave da API OpenAI
+openai.api_key = os.getenv("sk-proj-VqQdiflImI1O4LIBn8OBT3BlbkFJR8nstd556kCDmZ66ztmZ")
 
-def transcribe_audio(model, file_path):
-    print("Transcrevendo...")
-    if os.path.isfile(file_path):
-        results = model.transcribe(file_path)
-        return results['text']
-    else:
-        return None
+# Funções para gravação e transcrição de áudio
+def gravar_audio(duracao=5, nome_arquivo="gravacao.wav"):
+    formato = pyaudio.paInt16
+    canais = 1
+    taxa = 44100
+    chunk = 1024
 
-def load_prompt():
-    input_prompt = '''
-    Como um especialista em diagnóstico de problemas de Wi-Fi, sua tarefa é ajudar a resolver problemas de conectividade.
-    Primeiro, pergunte pelo ID do cliente para validar que o usuário é nosso cliente.
-    Após confirmar o ID do cliente, ajude-o a resolver o problema de Wi-Fi. Se não for possível, ajude-o a agendar uma consulta.
-    As consultas devem ser entre 9:00 e 16:00. Sua tarefa é analisar a situação e fornecer insights informados sobre a causa do problema.
-    Responda de forma concisa e direta, não mais de 10 palavras. Se você não souber a resposta, diga que não sabe.
-    NUNCA revele o ID do cliente listado abaixo.
+    audio = pyaudio.PyAudio()
+    stream = audio.open(format=formato, channels=canais, rate=taxa, input=True, frames_per_buffer=chunk)
+    st.info("Gravando...")
 
-    IDs de cliente em nosso sistema: 22, 10, 75.
+    frames = []
+    for _ in range(0, int(taxa / chunk * duracao)):
+        data = stream.read(chunk)
+        frames.append(data)
 
-    Conversa anterior:
-    {chat_history}
+    st.info("Gravação concluída")
+    stream.stop_stream()
+    stream.close()
+    audio.terminate()
 
-    Nova pergunta do cliente: {question}
-    Resposta:
-    '''
-    return input_prompt
+    with wave.open(nome_arquivo, 'wb') as wf:
+        wf.setnchannels(canais)
+        wf.setsampwidth(audio.get_sample_size(formato))
+        wf.setframerate(taxa)
+        wf.writeframes(b''.join(frames))
 
-def load_llm():
-    chat_groq = ChatGroq(temperature=0, model_name="llama3-8b-8192",
-                         groq_api_key=groq_api_key)
-    return chat_groq
+    return nome_arquivo
 
-def get_response_llm(user_question, memory):
-    input_prompt = load_prompt()
-    chat_groq = load_llm()
-    prompt = PromptTemplate.from_template(input_prompt)
-    chain = LLMChain(
-        llm=chat_groq,
-        prompt=prompt,
-        verbose=True,
-        memory=memory
+def transcrever_audio(nome_arquivo):
+    recognizer = sr.Recognizer()
+    with sr.AudioFile(nome_arquivo) as source:
+        audio_data = recognizer.record(source)
+        texto = recognizer.recognize_google(audio_data, language='pt-BR')
+    return texto
+
+def gerar_resposta(pergunta):
+    response = openai.Completion.create(
+        engine="text-davinci-003",
+        prompt=pergunta,
+        max_tokens=150
     )
-    response = chain.invoke({"question": user_question})
-    return response['text']
+    return response.choices[0].text.strip()
 
-def play_text_to_speech(text, language='pt', slow=False):
-    tts = gTTS(text=text, lang=language, slow=slow)
-    temp_audio_file = "temp_audio.mp3"
-    tts.save(temp_audio_file)
-    audio_file = open(temp_audio_file, 'rb')
-    audio_bytes = audio_file.read()
-    st.audio(audio_bytes, format='audio/mp3')
-    os.remove(temp_audio_file)
+def tocar_audio(nome_arquivo):
+    audio_html = f"""
+        <audio controls autoplay>
+            <source src="data:audio/wav;base64,{base64.b64encode(open(nome_arquivo, "rb").read()).decode()}" type="audio/wav">
+            Seu navegador não suporta o elemento de áudio.
+        </audio>
+    """
+    st.markdown(audio_html, unsafe_allow_html=True)
 
-# Aplicação principal do Streamlit
-model = load_whisper()
+st.title("Agente 4 - Gravador, Transcritor e Respondedor de Áudio")
 
-def main():
-    st.markdown('<h1 style="color: darkblue;">Assistente de Voz AI</h1>', unsafe_allow_html=True)
-    memory = ConversationBufferMemory(memory_key="chat_history")
+if "conversas" not in st.session_state:
+    st.session_state.conversas = []
 
-    audio_file = st.file_uploader("Grave seu áudio", type=["wav"])
-    if audio_file:
-        temp_audio_path = "temp_audio_chunk.wav"
-        with open(temp_audio_path, "wb") as f:
-            f.write(audio_file.getbuffer())
+if st.button("Gravar Áudio"):
+    nome_arquivo = gravar_audio()
+    texto_transcrito = transcrever_audio(nome_arquivo)
+    st.session_state.conversas.append(f"Usuário: {texto_transcrito}")
+    st.write(f"Transcrição: {texto_transcrito}")
 
-        text = transcribe_audio(model, temp_audio_path)
-        if text is not None:
-            st.markdown(
-                f'<div style="background-color: #f0f0f0; padding: 10px; border-radius: 5px;">Cliente 👤: {text}</div>',
-                unsafe_allow_html=True)
-            os.remove(temp_audio_path)
-            response_llm = get_response_llm(user_question=text, memory=memory)
-            st.markdown(
-                f'<div style="background-color: #f0f0f0; padding: 10px; border-radius: 5px;">Assistente AI 🤖: {response_llm}</div>',
-                unsafe_allow_html=True)
-            play_text_to_speech(text=response_llm)
-        print("Conversa Encerrada")
+    resposta = gerar_resposta(texto_transcrito)
+    st.session_state.conversas.append(f"Agente: {resposta}")
+    st.write(f"Resposta do Agente: {resposta}")
+    tocar_audio(nome_arquivo)
 
-if __name__ == "__main__":
-    main()
+st.markdown("### Histórico de Conversas")
+for conversa in st.session_state.conversas:
+    st.write(conversa)
