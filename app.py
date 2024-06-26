@@ -1,5 +1,6 @@
 #groq_api_key = os.getenv('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')
 
+import streamlit as st
 import PyPDF2
 from langchain_community.embeddings import OllamaEmbeddings
 from langchain.text_splitter import RecursiveCharacterTextSplitter
@@ -15,7 +16,7 @@ import os
 load_dotenv() 
 
 # Inicializando a API Key do modelo
-groq_api_key = os.environ['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']
+groq_api_key = os.environ['GROQ_API_KEY']
 
 # Substituir o inicializador de ChatGroq por uma função de log ou um LLM disponível.
 # Por exemplo, substitua por um LLM local ou qualquer outro modelo compatível com langchain.
