@@ -2,6 +2,5 @@ streamlit
 PyPDF2==3.0.1
 langchain_community==0.2.6
 langchain==0.2.6
-chainlit==0.1.0
+chainlit==1.1.304
 python-dotenv==0.21.0
-langchain_groq
