@@ -12,8 +12,6 @@ import chainlit as cl
 from dotenv import load_dotenv
 import os
 
-# Carregando variáveis de ambiente do arquivo .env
-load_dotenv() 
 
 # Inicializando a API Key do modelo
 groq_api_key = os.getenv('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')
