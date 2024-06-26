@@ -10,8 +10,6 @@ from langchain_groq import ChatGroq
 from gtts import gTTS
 import whisper
 from dotenv import load_dotenv
-from audio_recorder import Recorder
-import streamlit.components.v1 as components
 
 # Carregar variáveis de ambiente
 load_dotenv()
@@ -74,7 +72,9 @@ def play_text_to_speech(text, language='pt', slow=False):
     tts = gTTS(text=text, lang=language, slow=slow)
     temp_audio_file = "temp_audio.mp3"
     tts.save(temp_audio_file)
-    components.audio(temp_audio_file)
+    audio_file = open(temp_audio_file, 'rb')
+    audio_bytes = audio_file.read()
+    st.audio(audio_bytes, format='audio/mp3')
     os.remove(temp_audio_file)
 
 # Aplicação principal do Streamlit
@@ -84,26 +84,22 @@ def main():
     st.markdown('<h1 style="color: darkblue;">Assistente de Voz AI</h1>', unsafe_allow_html=True)
     memory = ConversationBufferMemory(memory_key="chat_history")
 
-    if st.button("Iniciar Gravação"):
-        # Gravação de áudio usando o componente audio-recorder
-        rec = Recorder()
-        audio_bytes = rec.start()
-        if audio_bytes:
-            # Salvando o áudio em um arquivo temporário
-            with open("temp_audio_chunk.wav", "wb") as f:
-                f.write(audio_bytes)
+    audio_bytes = st.file_uploader("Grave seu áudio", type=["wav"])
+    if audio_bytes:
+        with open("temp_audio_chunk.wav", "wb") as f:
+            f.write(audio_bytes.getbuffer())
 
-            text = transcribe_audio(model, "temp_audio_chunk.wav")
-            if text is not None:
-                st.markdown(
-                    f'<div style="background-color: #f0f0f0; padding: 10px; border-radius: 5px;">Cliente 👤: {text}</div>',
-                    unsafe_allow_html=True)
-                os.remove("temp_audio_chunk.wav")
-                response_llm = get_response_llm(user_question=text, memory=memory)
-                st.markdown(
-                    f'<div style="background-color: #f0f0f0; padding: 10px; border-radius: 5px;">Assistente AI 🤖: {response_llm}</div>',
-                    unsafe_allow_html=True)
-                play_text_to_speech(text=response_llm)
+        text = transcribe_audio(model, "temp_audio_chunk.wav")
+        if text is not None:
+            st.markdown(
+                f'<div style="background-color: #f0f0f0; padding: 10px; border-radius: 5px;">Cliente 👤: {text}</div>',
+                unsafe_allow_html=True)
+            os.remove("temp_audio_chunk.wav")
+            response_llm = get_response_llm(user_question=text, memory=memory)
+            st.markdown(
+                f'<div style="background-color: #f0f0f0; padding: 10px; border-radius: 5px;">Assistente AI 🤖: {response_llm}</div>',
+                unsafe_allow_html=True)
+            play_text_to_speech(text=response_llm)
         print("Conversa Encerrada")
 
 if __name__ == "__main__":
