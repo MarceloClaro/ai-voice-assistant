@@ -2,11 +2,11 @@ pip
 streamlit
 langchain
 openai-whisper
-sounddevice
+pygame
 gtts
+pyaudio
 python-dotenv
 langchain-groq
 scipy
 ffmpeg-python
-streamlit-webrtc
-SpeechRecognition
+soundfile
