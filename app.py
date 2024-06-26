@@ -1,7 +1,5 @@
 import streamlit as st
-import sounddevice as sd
 import numpy as np
-import wave
 import openai
 import os
 import time
@@ -9,10 +7,9 @@ from gtts import gTTS
 import tempfile
 from streamlit_webrtc import webrtc_streamer, AudioProcessorBase
 import queue
-import threading
 
 # Configurar a chave da API OpenAI
-openai.api_key = os.getenv("sk-proj-VqQdiflImI1O4LIBn8OBT3BlbkFJR8nstd556kCDmZ66ztmZ")
+openai.api_key = os.getenv("OPENAI_API_KEY")
 
 class AudioProcessor(AudioProcessorBase):
     def __init__(self):
@@ -31,7 +28,6 @@ class AudioProcessor(AudioProcessorBase):
         self.running = False
 
 def record_audio(duration):
-    # Use the WebRTC component to record audio
     ctx = webrtc_streamer(key="example", audio_processor_factory=AudioProcessor)
 
     if st.button("Iniciar Gravação"):
