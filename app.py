@@ -1,17 +1,4 @@
 import os
-import subprocess
-
-# Verifique e instale as dependências do sistema necessárias para o PortAudio
-def install_dependencies():
-    try:
-        # Tenta importar a biblioteca sounddevice
-        import sounddevice as sd
-    except OSError:
-        # Se falhar, instala as dependências do sistema
-        subprocess.call(['sh', './setup.sh'])
-
-install_dependencies()
-
 import streamlit as st
 import numpy as np
 import openai
@@ -41,13 +28,13 @@ class AudioProcessor(AudioProcessorBase):
         self.running = False
 
 def record_audio(duration):
-    ctx = webrtc_streamer(key="example", audio_processor_factory=AudioProcessor)
+    ctx = webrtc_streamer(key="example", audio_processor_factory=AudioProcessor, media_stream_constraints={"audio": True})
 
     if st.button("Iniciar Gravação"):
         ctx.audio_processor.start()
         st.write("Gravando...")
 
-        time.sleep(duration)
+        st.sleep(duration)
 
         ctx.audio_processor.stop()
         st.write("Gravação finalizada.")
