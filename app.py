@@ -18,6 +18,10 @@ load_dotenv()
 # Inicializando a API Key do modelo
 groq_api_key = os.getenv('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')
 
+# Verifique se a chave da API está carregada corretamente
+if not groq_api_key:
+    raise ValueError("GROQ_API_KEY não foi encontrado nas variáveis de ambiente")
+
 # Modelos disponíveis
 MODEL_MAX_TOKENS = {
     'mixtral-8x7b-32768': 32768,
@@ -32,7 +36,7 @@ model_name = st.selectbox('Escolha o modelo:', list(MODEL_MAX_TOKENS.keys()))
 # Inicializando o chat com o modelo escolhido
 from langchain_groq import ChatGroq
 llm_groq = ChatGroq(
-    groq_api_key=groq_api_key, 
+    api_key=groq_api_key, 
     model_name=model_name, 
     temperature=0.2
 )
