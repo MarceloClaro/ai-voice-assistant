@@ -1,3 +1,6 @@
+
+#'sk-proj-VqQdiflImI1O4LIBn8OBT3BlbkFJR8nstd556kCDmZ66ztmZ'
+
 import streamlit as st
 import numpy as np
 import soundfile as sf
@@ -9,12 +12,15 @@ import time
 import queue
 import sounddevice as sd
 import whisper
-import ffmpeg
 from langchain.llms import OpenAI
 from langchain.prompts import PromptTemplate
 from langchain.chains import LLMChain
+import json  # Para manipulação de dados JSON
 
-# Ajuste de chave da API
+# Configurações iniciais da página
+st.set_page_config(layout="wide")
+
+# Carregando a chave da API OpenAI
 openai.api_key = os.getenv('sk-proj-VqQdiflImI1O4LIBn8OBT3BlbkFJR8nstd556kCDmZ66ztmZ')
 
 # Funções para gravação de áudio e processamento
