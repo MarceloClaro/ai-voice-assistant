@@ -1,25 +1,13 @@
 import streamlit as st
-import sounddevice as sd
-import soundfile as sf
-import numpy as np
-import tempfile
-import os
+import speech_recognition as sr
 import openai
-from scipy.io.wavfile import write
+import os
+from streamlit_webrtc import webrtc_streamer, WebRtcMode, ClientSettings
 
 # Configurar a chave da API OpenAI
 openai.api_key = os.getenv("sk-proj-VqQdiflImI1O4LIBn8OBT3BlbkFJR8nstd556kCDmZ66ztmZ")
 
-# Funções para gravação e transcrição de áudio
-def gravar_audio(duracao=5, nome_arquivo="gravacao.wav"):
-    fs = 44100  # Sample rate
-    st.info("Gravando...")
-    myrecording = sd.rec(int(duracao * fs), samplerate=fs, channels=2, dtype='int16')
-    sd.wait()  # Espera até a gravação terminar
-    write(nome_arquivo, fs, myrecording)  # Salva o arquivo como WAV
-    st.info("Gravação concluída")
-    return nome_arquivo
-
+# Função para transcrever áudio
 def transcrever_audio(nome_arquivo):
     recognizer = sr.Recognizer()
     with sr.AudioFile(nome_arquivo) as source:
@@ -27,6 +15,7 @@ def transcrever_audio(nome_arquivo):
         texto = recognizer.recognize_google(audio_data, language='pt-BR')
     return texto
 
+# Função para gerar resposta
 def gerar_resposta(pergunta):
     response = openai.Completion.create(
         engine="text-davinci-003",
@@ -35,32 +24,53 @@ def gerar_resposta(pergunta):
     )
     return response.choices[0].text.strip()
 
-def tocar_audio(nome_arquivo):
-    audio_placeholder = st.empty()
-    audio_bytes = open(nome_arquivo, 'rb').read()
-    audio_html = f"""
-        <audio controls autoplay>
-            <source src="data:audio/wav;base64,{base64.b64encode(audio_bytes).decode()}" type="audio/wav">
-            Seu navegador não suporta o elemento de áudio.
-        </audio>
-    """
-    audio_placeholder.markdown(audio_html, unsafe_allow_html=True)
+# Função principal para processar áudio
+def process_audio(audio_file_path):
+    st.info("Transcrevendo o áudio...")
+    texto_transcrito = transcrever_audio(audio_file_path)
+    st.session_state.conversas.append(f"Usuário: {texto_transcrito}")
+    st.write(f"Transcrição: {texto_transcrito}")
 
+    st.info("Gerando a resposta do agente...")
+    resposta = gerar_resposta(texto_transcrito)
+    st.session_state.conversas.append(f"Agente: {resposta}")
+    st.write(f"Resposta do Agente: {resposta}")
+
+# Configurações do WebRTC
+WEBRTC_CLIENT_SETTINGS = ClientSettings(
+    media_stream_constraints={
+        "audio": True,
+        "video": False,
+    },
+    rtc_configuration={
+        "iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]
+    }
+)
+
+# Função para inicializar o WebRTC e gravar áudio
+def webrtc_audio_recorder():
+    webrtc_ctx = webrtc_streamer(
+        key="audio_recorder",
+        mode=WebRtcMode.SENDRECV,
+        client_settings=WEBRTC_CLIENT_SETTINGS,
+    )
+
+    if webrtc_ctx.state.playing:
+        if st.button("Parar Gravação"):
+            webrtc_ctx.stop()
+            audio_data = webrtc_ctx.audio_receiver.get_audio_data()
+            if audio_data:
+                with open("audio.wav", "wb") as f:
+                    f.write(audio_data)
+                process_audio("audio.wav")
+
+# Interface do Streamlit
 st.title("Agente 4 - Gravador, Transcritor e Respondedor de Áudio")
 
 if "conversas" not in st.session_state:
     st.session_state.conversas = []
 
-if st.button("Gravar Áudio"):
-    nome_arquivo = gravar_audio()
-    texto_transcrito = transcrever_audio(nome_arquivo)
-    st.session_state.conversas.append(f"Usuário: {texto_transcrito}")
-    st.write(f"Transcrição: {texto_transcrito}")
-
-    resposta = gerar_resposta(texto_transcrito)
-    st.session_state.conversas.append(f"Agente: {resposta}")
-    st.write(f"Resposta do Agente: {resposta}")
-    tocar_audio(nome_arquivo)
+webrtc_audio_recorder()
 
 st.markdown("### Histórico de Conversas")
 for conversa in st.session_state.conversas:
