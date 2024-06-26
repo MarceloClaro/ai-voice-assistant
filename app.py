@@ -1,75 +1,103 @@
 import streamlit as st
-import speech_recognition as sr
+import sounddevice as sd
+import numpy as np
+import wave
 import openai
 import os
-from streamlit_webrtc import webrtc_streamer, WebRtcMode, ClientSettings
+import time
+from gtts import gTTS
+import tempfile
+from streamlit_webrtc import webrtc_streamer, AudioProcessorBase
+import queue
+import threading
 
 # Configurar a chave da API OpenAI
 openai.api_key = os.getenv("sk-proj-VqQdiflImI1O4LIBn8OBT3BlbkFJR8nstd556kCDmZ66ztmZ")
 
-# Função para transcrever áudio
-def transcrever_audio(nome_arquivo):
-    recognizer = sr.Recognizer()
-    with sr.AudioFile(nome_arquivo) as source:
-        audio_data = recognizer.record(source)
-        texto = recognizer.recognize_google(audio_data, language='pt-BR')
-    return texto
+class AudioProcessor(AudioProcessorBase):
+    def __init__(self):
+        self.recording = queue.Queue()
+        self.running = False
 
-# Função para gerar resposta
-def gerar_resposta(pergunta):
+    def recv(self, frame):
+        if self.running:
+            self.recording.put(frame.to_ndarray().flatten())
+        return frame
+
+    def start(self):
+        self.running = True
+
+    def stop(self):
+        self.running = False
+
+def record_audio(duration):
+    # Use the WebRTC component to record audio
+    ctx = webrtc_streamer(key="example", audio_processor_factory=AudioProcessor)
+
+    if st.button("Iniciar Gravação"):
+        ctx.audio_processor.start()
+        st.write("Gravando...")
+
+        time.sleep(duration)
+
+        ctx.audio_processor.stop()
+        st.write("Gravação finalizada.")
+
+        # Process the recorded audio
+        frames = []
+        while not ctx.audio_processor.recording.empty():
+            frames.append(ctx.audio_processor.recording.get())
+
+        audio_data = np.concatenate(frames, axis=0).astype(np.int16)
+        return audio_data
+
+    return None
+
+def save_audio_file(audio_data, filename="output.wav"):
+    with wave.open(filename, 'w') as wf:
+        wf.setnchannels(1)  # mono
+        wf.setsampwidth(2)  # 16 bits per sample
+        wf.setframerate(44100)  # sample rate
+        wf.writeframes(audio_data.tobytes())
+
+def transcribe_audio(filename):
+    with open(filename, "rb") as audio_file:
+        transcript = openai.Audio.transcribe("whisper-1", audio_file)
+    return transcript
+
+def generate_response(prompt):
     response = openai.Completion.create(
-        engine="text-davinci-003",
-        prompt=pergunta,
+        engine="davinci",
+        prompt=prompt,
         max_tokens=150
     )
     return response.choices[0].text.strip()
 
-# Função principal para processar áudio
-def process_audio(audio_file_path):
-    st.info("Transcrevendo o áudio...")
-    texto_transcrito = transcrever_audio(audio_file_path)
-    st.session_state.conversas.append(f"Usuário: {texto_transcrito}")
-    st.write(f"Transcrição: {texto_transcrito}")
+def text_to_speech(text, lang="pt"):
+    tts = gTTS(text=text, lang=lang)
+    tts_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
+    tts.save(tts_file.name)
+    return tts_file.name
 
-    st.info("Gerando a resposta do agente...")
-    resposta = gerar_resposta(texto_transcrito)
-    st.session_state.conversas.append(f"Agente: {resposta}")
-    st.write(f"Resposta do Agente: {resposta}")
-
-# Configurações do WebRTC
-WEBRTC_CLIENT_SETTINGS = ClientSettings(
-    media_stream_constraints={
-        "audio": True,
-        "video": False,
-    },
-    rtc_configuration={
-        "iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]
-    }
-)
-
-# Função para inicializar o WebRTC e gravar áudio
-def webrtc_audio_recorder():
-    webrtc_ctx = webrtc_streamer(
-        key="audio_recorder",
-        mode=WebRtcMode.SENDRECV,
-        client_settings=WEBRTC_CLIENT_SETTINGS,
-    )
-
-    if webrtc_ctx.state.playing and webrtc_ctx.audio_receiver:
-        audio_data = webrtc_ctx.audio_receiver.get_audio_data()
-        if audio_data:
-            with open("audio.wav", "wb") as f:
-                f.write(audio_data)
-            process_audio("audio.wav")
+def play_audio(file_path):
+    audio_data = open(file_path, "rb").read()
+    st.audio(audio_data, format="audio/mp3")
 
 # Interface do Streamlit
-st.title("Agente 4 - Gravador, Transcritor e Respondedor de Áudio")
+st.title("Agente 4 - Grava, Transcreve, Responde e Reproduz Áudio")
 
-if "conversas" not in st.session_state:
-    st.session_state.conversas = []
+duration = st.number_input("Duração da gravação (segundos):", min_value=1, max_value=60, value=5)
 
-webrtc_audio_recorder()
+audio_data = record_audio(duration)
 
-st.markdown("### Histórico de Conversas")
-for conversa in st.session_state.conversas:
-    st.write(conversa)
+if audio_data is not None:
+    save_audio_file(audio_data)
+
+    transcript = transcribe_audio("output.wav")
+    st.write("Transcrição:", transcript)
+
+    response = generate_response(transcript)
+    st.write("Resposta:", response)
+
+    tts_file = text_to_speech(response)
+    play_audio(tts_file)
