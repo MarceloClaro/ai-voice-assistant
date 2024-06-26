@@ -1,7 +1,5 @@
 import os
-import wave
 import streamlit as st
-import numpy as np
 from scipy.io import wavfile
 from langchain.memory import ConversationBufferMemory
 from langchain.chains.llm import LLMChain
@@ -14,10 +12,6 @@ from dotenv import load_dotenv
 # Carregar variáveis de ambiente
 load_dotenv()
 groq_api_key = os.getenv("GROQ_API_KEY")
-
-def is_silence(data, max_amplitude_threshold=3000):
-    max_amplitude = np.max(np.abs(data))
-    return max_amplitude <= max_amplitude_threshold
 
 def load_whisper():
     model = whisper.load_model("base")
@@ -84,17 +78,18 @@ def main():
     st.markdown('<h1 style="color: darkblue;">Assistente de Voz AI</h1>', unsafe_allow_html=True)
     memory = ConversationBufferMemory(memory_key="chat_history")
 
-    audio_bytes = st.file_uploader("Grave seu áudio", type=["wav"])
-    if audio_bytes:
-        with open("temp_audio_chunk.wav", "wb") as f:
-            f.write(audio_bytes.getbuffer())
+    audio_file = st.file_uploader("Grave seu áudio", type=["wav"])
+    if audio_file:
+        temp_audio_path = "temp_audio_chunk.wav"
+        with open(temp_audio_path, "wb") as f:
+            f.write(audio_file.getbuffer())
 
-        text = transcribe_audio(model, "temp_audio_chunk.wav")
+        text = transcribe_audio(model, temp_audio_path)
         if text is not None:
             st.markdown(
                 f'<div style="background-color: #f0f0f0; padding: 10px; border-radius: 5px;">Cliente 👤: {text}</div>',
                 unsafe_allow_html=True)
-            os.remove("temp_audio_chunk.wav")
+            os.remove(temp_audio_path)
             response_llm = get_response_llm(user_question=text, memory=memory)
             st.markdown(
                 f'<div style="background-color: #f0f0f0; padding: 10px; border-radius: 5px;">Assistente AI 🤖: {response_llm}</div>',
