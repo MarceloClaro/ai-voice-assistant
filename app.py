@@ -55,14 +55,12 @@ def webrtc_audio_recorder():
         client_settings=WEBRTC_CLIENT_SETTINGS,
     )
 
-    if webrtc_ctx.state.playing:
-        if st.button("Parar Gravação"):
-            webrtc_ctx.stop()
-            audio_data = webrtc_ctx.audio_receiver.get_audio_data()
-            if audio_data:
-                with open("audio.wav", "wb") as f:
-                    f.write(audio_data)
-                process_audio("audio.wav")
+    if webrtc_ctx.state.playing and webrtc_ctx.audio_receiver:
+        audio_data = webrtc_ctx.audio_receiver.get_audio_data()
+        if audio_data:
+            with open("audio.wav", "wb") as f:
+                f.write(audio_data)
+            process_audio("audio.wav")
 
 # Interface do Streamlit
 st.title("Agente 4 - Gravador, Transcritor e Respondedor de Áudio")
