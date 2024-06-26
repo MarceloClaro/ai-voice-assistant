@@ -1,7 +1,5 @@
-
 import os
 import wave
-import pyaudio
 import streamlit as st
 import numpy as np
 from scipy.io import wavfile
@@ -10,9 +8,10 @@ from langchain.chains.llm import LLMChain
 from langchain_core.prompts import PromptTemplate
 from langchain_groq import ChatGroq
 from gtts import gTTS
-import pygame
+import sounddevice as sd
 import whisper
 from dotenv import load_dotenv
+from playsound import playsound
 
 # Carregar variáveis de ambiente
 load_dotenv()
@@ -22,32 +21,20 @@ def is_silence(data, max_amplitude_threshold=3000):
     max_amplitude = np.max(np.abs(data))
     return max_amplitude <= max_amplitude_threshold
 
-def record_audio_chunk(audio, stream, chunk_length=5):
+def record_audio_chunk(chunk_length=5, samplerate=16000):
     print("Gravando...")
-    frames = []
-    num_chunks = int(16000 / 1024 * chunk_length)
-
-    for _ in range(num_chunks):
-        data = stream.read(1024)
-        frames.append(data)
-
+    duration = chunk_length
+    recording = sd.rec(int(duration * samplerate), samplerate=samplerate, channels=1, dtype='int16')
+    sd.wait()
     temp_file_path = 'temp_audio_chunk.wav'
     print("Escrevendo...")
-    with wave.open(temp_file_path, 'wb') as wf:
-        wf.setnchannels(1)
-        wf.setsampwidth(audio.get_sample_size(pyaudio.paInt16))
-        wf.setframerate(16000)
-        wf.writeframes(b''.join(frames))
-
-    try:
-        samplerate, data = wavfile.read(temp_file_path)
-        if is_silence(data):
-            os.remove(temp_file_path)
-            return True
-        else:
-            return False
-    except Exception as e:
-        print(f"Erro ao ler o arquivo de áudio: {e}")
+    wavfile.write(temp_file_path, samplerate, recording)
+    data = np.frombuffer(recording, dtype='int16')
+    if is_silence(data):
+        os.remove(temp_file_path)
+        return True
+    else:
+        return False
 
 def load_whisper():
     model = whisper.load_model("base")
@@ -102,13 +89,7 @@ def play_text_to_speech(text, language='pt', slow=False):
     tts = gTTS(text=text, lang=language, slow=slow)
     temp_audio_file = "temp_audio.mp3"
     tts.save(temp_audio_file)
-    pygame.mixer.init()
-    pygame.mixer.music.load(temp_audio_file)
-    pygame.mixer.music.play()
-    while pygame.mixer.music.get_busy():
-        pygame.time.Clock().tick(10)
-    pygame.mixer.music.stop()
-    pygame.mixer.quit()
+    playsound(temp_audio_file)
     os.remove(temp_audio_file)
 
 # Aplicação principal do Streamlit
@@ -121,9 +102,7 @@ def main():
 
     if st.button("Iniciar Gravação"):
         while True:
-            audio = pyaudio.PyAudio()
-            stream = audio.open(format=pyaudio.paInt16, channels=1, rate=16000, input=True, frames_per_buffer=1024)
-            record_audio_chunk(audio, stream)
+            record_audio_chunk()
             text = transcribe_audio(model, chunk_file)
 
             if text is not None:
@@ -137,9 +116,6 @@ def main():
                     unsafe_allow_html=True)
                 play_text_to_speech(text=response_llm)
             else:
-                stream.stop_stream()
-                stream.close()
-                audio.terminate()
                 break
         print("Conversa Encerrada")
 
