@@ -1,8 +1,4 @@
 streamlit
-langchain
-whisper
-gtts
-python-dotenv
-langchain-groq
-scipy
-ffmpeg-python
+pyaudio
+speechrecognition
+openai
