@@ -13,7 +13,7 @@ import os
 load_dotenv()
 
 # Chave da API Groq
-groq_api_key = os.getenv('GROQ_API_KEY')
+groq_api_key = os.getenv('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')
 
 # Inicializar o chat Groq com a chave API fornecida
 llm_groq = ChatGroq(
