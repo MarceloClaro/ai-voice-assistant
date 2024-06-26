@@ -1,15 +1,28 @@
+import os
+import subprocess
+
+# Verifique e instale as dependências do sistema necessárias para o PortAudio
+def install_dependencies():
+    try:
+        # Tenta importar a biblioteca sounddevice
+        import sounddevice as sd
+    except OSError:
+        # Se falhar, instala as dependências do sistema
+        subprocess.call(['sh', './setup.sh'])
+
+install_dependencies()
+
 import streamlit as st
 import numpy as np
 import openai
-import os
-import time
-from gtts import gTTS
 import tempfile
+from gtts import gTTS
 from streamlit_webrtc import webrtc_streamer, AudioProcessorBase
 import queue
+import wave
 
 # Configurar a chave da API OpenAI
-openai.api_key = os.getenv("OPENAI_API_KEY")
+openai.api_key = os.getenv("sk-proj-VqQdiflImI1O4LIBn8OBT3BlbkFJR8nstd556kCDmZ66ztmZ")
 
 class AudioProcessor(AudioProcessorBase):
     def __init__(self):
