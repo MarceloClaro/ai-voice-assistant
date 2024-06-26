@@ -1,5 +1,7 @@
-streamlit
 sounddevice
 soundfile
 scipy
+streamlit
+speechrecognition
 openai
+streamlit-webrtc
