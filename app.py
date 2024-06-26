@@ -1,101 +1,99 @@
-
-#'sk-proj-VqQdiflImI1O4LIBn8OBT3BlbkFJR8nstd556kCDmZ66ztmZ'
-
 import streamlit as st
-import numpy as np
-import soundfile as sf
+import PyPDF2
+from langchain_community.embeddings import OllamaEmbeddings
+from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain_community.vectorstores import Chroma
+from langchain.chains import ConversationalRetrievalChain
+from langchain.memory import ChatMessageHistory, ConversationBufferMemory
+from langchain_groq import ChatGroq
+from dotenv import load_dotenv
 import os
-import openai
-from gtts import gTTS
-from io import BytesIO
-import time
-import queue
-import sounddevice as sd
-import whisper
-from langchain.llms import OpenAI
-from langchain.prompts import PromptTemplate
-from langchain.chains import LLMChain
-import json  # Para manipulação de dados JSON
 
-# Configurações iniciais da página
-st.set_page_config(layout="wide")
+# Carregar variáveis de ambiente do arquivo .env
+load_dotenv()
 
-# Carregando a chave da API OpenAI
-openai.api_key = os.getenv('sk-proj-VqQdiflImI1O4LIBn8OBT3BlbkFJR8nstd556kCDmZ66ztmZ')
+# Chave da API Groq
+groq_api_key = os.getenv('GROQ_API_KEY')
 
-# Funções para gravação de áudio e processamento
-def record_audio(duration, fs=44100, channels=1):
-    q = queue.Queue()
+# Inicializar o chat Groq com a chave API fornecida
+llm_groq = ChatGroq(
+    groq_api_key=groq_api_key, model_name="llama3-70b-8192",
+    temperature=0.2
+)
 
-    def callback(indata, frames, time, status):
-        q.put(indata.copy())
+def process_files(files):
+    texts = []
+    metadatas = []
+    for file in files:
+        # Ler o arquivo PDF
+        pdf = PyPDF2.PdfReader(file)
+        pdf_text = ""
+        for page in pdf.pages:
+            pdf_text += page.extract_text()
+            
+        # Dividir o texto em pedaços
+        text_splitter = RecursiveCharacterTextSplitter(chunk_size=1200, chunk_overlap=50)
+        file_texts = text_splitter.split_text(pdf_text)
+        texts.extend(file_texts)
 
-    with sd.InputStream(samplerate=fs, channels=channels, callback=callback):
-        st.text("Gravando...")
-        time.sleep(duration)
+        # Criar metadados para cada pedaço
+        file_metadatas = [{"source": f"{i}-{file.name}"} for i in range(len(file_texts))]
+        metadatas.extend(file_metadatas)
+
+    # Criar um repositório de vetores Chroma
+    embeddings = OllamaEmbeddings(model="nomic-embed-text")
+    docsearch = Chroma.from_texts(texts, embeddings, metadatas=metadatas)
     
-    data = []
-    while not q.empty():
-        data.append(q.get())
-    return np.concatenate(data)
+    return docsearch
 
-def save_audio(file_path, data, fs):
-    sf.write(file_path, data, fs)
-
-def transcribe_audio(file_path):
-    model = whisper.load_model("base")
-    result = model.transcribe(file_path)
-    return result['text']
-
-def play_audio(file_path):
-    data, fs = sf.read(file_path, dtype='float32')
-    sd.play(data, fs)
-    sd.wait()
-
-# Função principal do Streamlit
 def main():
-    st.title("Agente de Áudio com Memória")
-
-    if 'conversation' not in st.session_state:
-        st.session_state.conversation = []
-
-    duration = st.slider("Duração da gravação (segundos):", 1, 10, 5)
-    if st.button("Gravar"):
-        audio_data = record_audio(duration)
-        file_path = "recorded_audio.wav"
-        save_audio(file_path, audio_data, 44100)
-
-        st.session_state.conversation.append({"role": "user", "text": "Áudio gravado"})
-        st.audio(file_path, format='audio/wav')
-
-        transcription = transcribe_audio(file_path)
-        st.session_state.conversation.append({"role": "user", "text": transcription})
-        st.text("Transcrição: " + transcription)
-
-        llm = OpenAI(temperature=0.5)
-        prompt = PromptTemplate(
-            input_variables=["history", "input"],
-            template="{history}\nUser: {input}\nAssistant:"
+    st.title("Conversational Retrieval with Groq and Streamlit")
+    
+    # Upload de arquivos PDF
+    uploaded_files = st.file_uploader("Upload one or more PDF files", type="pdf", accept_multiple_files=True)
+    
+    if uploaded_files:
+        st.write(f"{len(uploaded_files)} file(s) uploaded.")
+        docsearch = process_files(uploaded_files)
+        
+        # Inicializar histórico de mensagens
+        message_history = ChatMessageHistory()
+        
+        # Memória para contexto conversacional
+        memory = ConversationBufferMemory(
+            memory_key="chat_history",
+            output_key="answer",
+            chat_memory=message_history,
+            return_messages=True,
         )
-        chain = LLMChain(llm=llm, prompt=prompt)
-
-        history = "\n".join([f"{x['role'].capitalize()}: {x['text']}" for x in st.session_state.conversation])
-        response = chain.run(history=history, input=transcription)
-
-        st.session_state.conversation.append({"role": "assistant", "text": response})
-        st.text("Resposta do Assistente: " + response)
-
-        tts = gTTS(response, lang='pt')
-        audio_response_path = "response_audio.wav"
-        tts.save(audio_response_path)
-        st.audio(audio_response_path, format='audio/wav')
-
-        if st.button("Reproduzir Resposta"):
-            play_audio(audio_response_path)
-
-    if st.button("Mostrar Conversa"):
-        for msg in st.session_state.conversation:
-            st.text(f"{msg['role'].capitalize()}: {msg['text']}")
+        
+        # Criar uma cadeia que usa o repositório de vetores Chroma
+        chain = ConversationalRetrievalChain.from_llm(
+            llm=llm_groq,
+            chain_type="stuff",
+            retriever=docsearch.as_retriever(),
+            memory=memory,
+            return_source_documents=True,
+        )
+        
+        if 'chain' not in st.session_state:
+            st.session_state.chain = chain
+        
+        st.success("Files processed. You can now ask questions!")
+        
+        user_question = st.text_input("Ask a question about the uploaded documents:")
+        
+        if user_question:
+            response = st.session_state.chain({"query": user_question})
+            answer = response["answer"]
+            source_documents = response["source_documents"]
+            
+            st.write(f"**Answer:** {answer}")
+            
+            if source_documents:
+                st.write("**Sources:**")
+                for idx, doc in enumerate(source_documents):
+                    st.write(f"{idx + 1}. {doc.page_content}")
 
 if __name__ == "__main__":
     main()
