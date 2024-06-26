@@ -6,4 +6,3 @@ python-dotenv
 langchain-groq
 scipy
 ffmpeg-python
-audio-recorder
