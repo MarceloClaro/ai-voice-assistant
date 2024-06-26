@@ -16,13 +16,26 @@ import os
 load_dotenv() 
 
 # Inicializando a API Key do modelo
-groq_api_key = os.getenv('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')
+groq_api_key = os.environ['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']
 
-# Substituir o inicializador de ChatGroq por uma função de log ou um LLM disponível.
-# Por exemplo, substitua por um LLM local ou qualquer outro modelo compatível com langchain.
-# Aqui vamos usar um modelo placeholder.
-from langchain.llms import OpenAI
-llm_groq = OpenAI(temperature=0.2, openai_api_key=groq_api_key)
+# Modelos disponíveis
+MODEL_MAX_TOKENS = {
+    'mixtral-8x7b-32768': 32768,
+    'llama3-70b-8192': 8192, 
+    'llama3-8b-8192': 8192,
+    'gemma-7b-it': 8192,
+}
+
+# Seleção do modelo pelo usuário
+model_name = st.selectbox('Escolha o modelo:', list(MODEL_MAX_TOKENS.keys()))
+
+# Inicializando o chat com o modelo escolhido
+from langchain_groq import ChatGroq
+llm_groq = ChatGroq(
+    groq_api_key=groq_api_key, 
+    model_name=model_name, 
+    temperature=0.2
+)
 
 @cl.on_chat_start
 async def on_chat_start():
