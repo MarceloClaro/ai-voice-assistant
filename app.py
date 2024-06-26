@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 
 # Carregar variáveis de ambiente
 load_dotenv()
-groq_api_key = os.getenv("GROQ_API_KEY")
+groq_api_key = os.getenv("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")
 
 def load_whisper():
     model = whisper.load_model("base")
