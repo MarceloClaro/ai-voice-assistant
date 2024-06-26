@@ -1,3 +1,4 @@
+
 import os
 import wave
 import pyaudio
@@ -18,7 +19,6 @@ load_dotenv()
 groq_api_key = os.getenv("GROQ_API_KEY")
 
 def is_silence(data, max_amplitude_threshold=3000):
-    """Verificar se os dados de áudio contêm silêncio."""
     max_amplitude = np.max(np.abs(data))
     return max_amplitude <= max_amplitude_threshold
 
@@ -62,23 +62,22 @@ def transcribe_audio(model, file_path):
         return None
 
 def load_prompt():
-    input_prompt = """
-    Como um consultor especializado em diagnosticar problemas de Wi-Fi, sua experiência é fundamental para solucionar e
-    resolver problemas de conectividade. Primeiro, peça o ID do cliente para validar se o usuário é nosso cliente. 
-    Após confirmar o ID do cliente, ajude-o a resolver o problema de Wi-Fi, se não for possível, ajude-o a marcar uma 
-    consulta. As consultas devem ser entre 9:00 e 16:00. Sua tarefa é analisar
-    a situação e fornecer insights informados sobre a causa raiz da interrupção do Wi-Fi. Forneça respostas concisas e curtas
-    com no máximo 10 palavras, e não converse consigo mesmo!. Se você não souber a resposta,
-    diga apenas que não sabe, não tente inventar uma resposta. NUNCA diga o ID do cliente listado abaixo.
+    input_prompt = '''
+    Como um especialista em diagnóstico de problemas de Wi-Fi, sua tarefa é ajudar a resolver problemas de conectividade.
+    Primeiro, pergunte pelo ID do cliente para validar que o usuário é nosso cliente.
+    Após confirmar o ID do cliente, ajude-o a resolver o problema de Wi-Fi. Se não for possível, ajude-o a agendar uma consulta.
+    As consultas devem ser entre 9:00 e 16:00. Sua tarefa é analisar a situação e fornecer insights informados sobre a causa do problema.
+    Responda de forma concisa e direta, não mais de 10 palavras. Se você não souber a resposta, diga que não sabe.
+    NUNCA revele o ID do cliente listado abaixo.
 
-    IDs de cliente em nossos dados: 22, 10, 75.
+    IDs de cliente em nosso sistema: 22, 10, 75.
 
     Conversa anterior:
     {chat_history}
 
-    Nova pergunta do humano: {question}
+    Nova pergunta do cliente: {question}
     Resposta:
-    """
+    '''
     return input_prompt
 
 def load_llm():
@@ -112,7 +111,7 @@ def play_text_to_speech(text, language='pt', slow=False):
     pygame.mixer.quit()
     os.remove(temp_audio_file)
 
-# Aplicação principal Streamlit
+# Aplicação principal do Streamlit
 chunk_file = 'temp_audio_chunk.wav'
 model = load_whisper()
 
@@ -142,7 +141,7 @@ def main():
                 stream.close()
                 audio.terminate()
                 break
-        print("Fim da Conversa")
+        print("Conversa Encerrada")
 
 if __name__ == "__main__":
     main()
