@@ -1,10 +1,9 @@
-pip
 streamlit
-langchain
-openai-whisper
-pygame
-gtts
 pyaudio
+langchain
+whisper
+gtts
+pygame
 python-dotenv
 langchain-groq
 scipy
