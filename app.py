@@ -16,7 +16,7 @@ import os
 load_dotenv() 
 
 # Inicializando a API Key do modelo
-groq_api_key = os.environ['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']
+groq_api_key = os.getenv('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')
 
 # Modelos disponíveis
 MODEL_MAX_TOKENS = {
