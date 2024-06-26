@@ -1,11 +1,10 @@
-
 streamlit
-pyaudio
 langchain
 whisper
 gtts
-pygame
 python-dotenv
 langchain-groq
 scipy
 ffmpeg-python
+sounddevice
+playsound
